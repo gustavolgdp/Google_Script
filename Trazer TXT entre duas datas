@@ -1,0 +1,49 @@
+function transferirAnexosTxt() {
+  // 🔧 Defina as datas usando mês no formato "normal" (jan = 1, fev = 2, ..., dez = 12)
+  const anoInicial = 2025;
+  const mesInicial = 5;  // Maio
+  const diaInicial = 1;
+
+  const anoFinal = 2025;
+  const mesFinal = 5;    // Maio
+  const diaFinal = 10;
+
+  const dataInicial = new Date(anoInicial, mesInicial - 1, diaInicial);
+  const dataFinal = new Date(anoFinal, mesFinal - 1, diaFinal);
+
+  // 📂 Nome da pasta no Google Drive
+  const nomePastaDestino = "Corrente";
+  const pastaDestino = obterOuCriarPasta(nomePastaDestino);
+
+  // 🔍 Busca e-mails entre as datas
+  const query = `after:${formatarDataQuery(dataInicial)} before:${formatarDataQuery(dataFinal)}`;
+  const threads = GmailApp.search(query);
+
+  let totalSalvos = 0;
+
+  threads.forEach(thread => {
+    const mensagens = thread.getMessages();
+    mensagens.forEach(mensagem => {
+      const anexos = mensagem.getAttachments();
+      anexos.forEach(anexo => {
+        if (anexo.getName().toLowerCase().endsWith(".txt")) {
+          pastaDestino.createFile(anexo);
+          totalSalvos++;
+        }
+      });
+    });
+  });
+
+  Logger.log(`Total de arquivos .txt salvos: ${totalSalvos}`);
+}
+
+// 📅 Formata a data no padrão YYYY/MM/DD
+function formatarDataQuery(data) {
+  return Utilities.formatDate(data, Session.getScriptTimeZone(), "yyyy/MM/dd");
+}
+
+// 📁 Busca ou cria pasta no Google Drive
+function obterOuCriarPasta(nome) {
+  const pastas = DriveApp.getFoldersByName(nome);
+  return pastas.hasNext() ? pastas.next() : DriveApp.createFolder(nome);
+}
