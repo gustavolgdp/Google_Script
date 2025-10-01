@@ -1,0 +1,77 @@
+/**
+ * Move para a Lixeira todos os e-mails não lidos que estão na Caixa de Entrada.
+ * Tem opção de dryRun (apenas lista) e limit (número máximo de threads a remover).
+ *
+ * Uso:
+ *  - deleteUnreadInInbox();            // apaga tudo (padrão, cuidado!)
+ *  - deleteUnreadInInbox(true, 200);  // dryRun, mostra até 200 threads que seriam apagadas
+ *  - deleteUnreadInInbox(false, 500); // apaga até 500 threads (use para testes)
+ */
+
+function deleteUnreadInInbox(dryRun = false, limit = null) {
+  const QUERY = 'in:inbox is:unread';
+  const BATCH_SIZE = 50; // numero de threads processadas por iteração
+  let totalProcessed = 0;
+  let keepGoing = true;
+
+  Logger.log('Iniciando %s. Query: %s', dryRun ? 'DRY RUN (não apaga)' : 'EXECUÇÃO (apaga)', QUERY);
+
+  while (keepGoing) {
+    // buscamos sempre do início para evitar problemas quando threads são removidas
+    const threads = GmailApp.search(QUERY, 0, BATCH_SIZE);
+    if (!threads || threads.length === 0) {
+      Logger.log('Nenhuma thread não-lida encontrada na Caixa de Entrada.');
+      break;
+    }
+
+    for (let i = 0; i < threads.length; i++) {
+      const thread = threads[i];
+
+      // opcional: limite para testes
+      if (limit !== null && totalProcessed >= limit) {
+        keepGoing = false;
+        break;
+      }
+
+      // obter informações úteis para logging / dry run
+      const msgs = thread.getMessages();
+      const firstMsg = msgs[0];
+      const subject = firstMsg.getSubject();
+      const from = firstMsg.getFrom();
+      const date = firstMsg.getDate();
+
+      if (dryRun) {
+        Logger.log('DRY: [%s] %s — %s', date.toISOString(), from, subject);
+      } else {
+        try {
+          thread.moveToTrash(); // move a thread inteira para a Lixeira
+          Logger.log('Movido para Lixeira: [%s] %s — %s', date.toISOString(), from, subject);
+        } catch (e) {
+          Logger.log('Erro ao mover para lixeira (assunto: %s): %s', subject, e.message);
+        }
+      }
+      totalProcessed++;
+    }
+
+    // pequena pausa para evitar quotas excessivas (opcional)
+    Utilities.sleep(300); // 300 ms (ajuste se necessário)
+
+    // se limit foi atingido, interrompe
+    if (limit !== null && totalProcessed >= limit) {
+      Logger.log('Limite atingido: %d threads processadas.', totalProcessed);
+      break;
+    }
+
+    // continua o loop até que não haja mais threads correspondentes
+  }
+
+  Logger.log('Concluído. Total processado: %d', totalProcessed);
+}
+
+/**
+ * Função auxiliar para rodar como dry run mostrando apenas 100 exemplos.
+ * Execute do editor para inspecionar antes de apagar.
+ */
+function dryRunSample() {
+  deleteUnreadInInbox(true, 100);
+}
